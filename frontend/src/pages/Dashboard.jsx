@@ -1,33 +1,78 @@
 import MainLayout from "../layout/MainLayout"
+import { FaUserGraduate, FaCamera, FaChartBar } from "react-icons/fa"
+import { useNavigate } from "react-router-dom"
 
 export default function Dashboard() {
+
+  const navigate = useNavigate()
+
   return (
     <MainLayout>
 
-      <h1 className="text-3xl font-bold mb-6">
-        Dashboard
-      </h1>
+      <div className="p-6">
 
-      <div className="grid grid-cols-4 gap-6">
+        {/* HERO */}
+        <div className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white p-10 rounded-2xl shadow mb-8 text-center">
 
-        <div className="bg-white shadow rounded-xl p-6">
-          <h3 className="text-gray-500">Total Students</h3>
-          <p className="text-3xl font-bold">120</p>
+          <h1 className="text-3xl font-bold mb-2">
+            🎉 Dashboard Face Attendance
+          </h1>
+
+          <p className="text-lg opacity-90">
+            👋 Chào mừng Admin quay trở lại! Chúc bạn một ngày làm việc hiệu quả 🚀
+          </p>
+
         </div>
 
-        <div className="bg-white shadow rounded-xl p-6">
-          <h3 className="text-gray-500">Total Classes</h3>
-          <p className="text-3xl font-bold">6</p>
-        </div>
+        {/* FEATURES */}
+        <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+          📌 Chức năng hệ thống
+        </h2>
 
-        <div className="bg-white shadow rounded-xl p-6">
-          <h3 className="text-gray-500">Attendance Today</h3>
-          <p className="text-3xl font-bold">85</p>
-        </div>
+        <div className="grid md:grid-cols-3 gap-6">
 
-        <div className="bg-white shadow rounded-xl p-6">
-          <h3 className="text-gray-500">Unknown Faces</h3>
-          <p className="text-3xl font-bold">3</p>
+          {/* STUDENTS */}
+          <div
+            onClick={() => navigate("/students")}
+            className="bg-white p-6 rounded-xl shadow border cursor-pointer hover:shadow-lg transition"
+          >
+            <FaUserGraduate className="text-3xl text-blue-500 mb-3" />
+            <h3 className="text-xl font-semibold text-blue-600">
+              Quản lý sinh viên
+            </h3>
+            <p className="text-gray-500 mt-2 text-sm">
+              Thêm, sửa, xóa và quản lý danh sách sinh viên.
+            </p>
+          </div>
+
+          {/* ATTENDANCE */}
+          <div
+            onClick={() => navigate("/attendance")}
+            className="bg-white p-6 rounded-xl shadow border cursor-pointer hover:shadow-lg transition"
+          >
+            <FaCamera className="text-3xl text-purple-500 mb-3" />
+            <h3 className="text-xl font-semibold text-purple-600">
+              Điểm danh khuôn mặt
+            </h3>
+            <p className="text-gray-500 mt-2 text-sm">
+              Điểm danh tự động bằng AI nhận diện khuôn mặt.
+            </p>
+          </div>
+
+          {/* REPORT */}
+          <div
+            onClick={() => navigate("/statistics")}
+            className="bg-white p-6 rounded-xl shadow border cursor-pointer hover:shadow-lg transition"
+          >
+            <FaChartBar className="text-3xl text-green-500 mb-3" />
+            <h3 className="text-xl font-semibold text-green-600">
+              Thống kê dữ liệu
+            </h3>
+            <p className="text-gray-500 mt-2 text-sm">
+              Xem báo cáo và thống kê điểm danh theo ngày.
+            </p>
+          </div>
+
         </div>
 
       </div>

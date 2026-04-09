@@ -58,7 +58,10 @@ ${isActive
 
 return(
 
-<div className={`relative bg-blue-600 text-white min-h-screen transition-all duration-300 ${collapsed ? "w-[86px]" : "w-[255px]"} p-4`}>
+<div
+  className={`fixed top-0 left-0 h-screen bg-blue-600 text-white transition-all duration-300 z-50
+  ${collapsed ? "w-20" : "w-64"} p-4`}
+>
 
 {/* HEADER */}
 
