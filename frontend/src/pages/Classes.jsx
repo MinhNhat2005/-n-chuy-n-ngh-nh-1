@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef  } from "react"
 import MainLayout from "../layout/MainLayout"
 import { FaPlus, FaTrash, FaBook, FaUsers } from "react-icons/fa"
 import { addEnrollment } from "../services/studentService"
+import Swal from "sweetalert2"
 
 // services
 import { getClasses, addClass, deleteClass } from "../services/classService"
@@ -19,6 +20,11 @@ export default function Classes() {
 
   const [editingStudent, setEditingStudent] = useState(null)
   const [menuOpenId, setMenuOpenId] = useState(null)
+
+  const [menuClassOpenId, setMenuClassOpenId] = useState(null)
+  const [editingClass, setEditingClass] = useState(null)
+  const classMenuRef = useRef()
+  const studentMenuRef = useRef()
 
   const [newClass, setNewClass] = useState({
     id: "",
@@ -54,6 +60,24 @@ export default function Classes() {
     }
   }
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+
+      // đóng menu class
+      if (classMenuRef.current && !classMenuRef.current.contains(e.target)) {
+        setMenuClassOpenId(null)
+      }
+
+      // đóng menu student
+      if (studentMenuRef.current && !studentMenuRef.current.contains(e.target)) {
+        setMenuOpenId(null)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
   // ===== LOAD STUDENTS =====
   useEffect(() => {
     if (selectedClass) {
@@ -69,7 +93,11 @@ export default function Classes() {
   // ===== ADD CLASS =====
   const handleAddClass = async () => {
     if (!newClass.id || !newClass.name) {
-      alert("Nhập đầy đủ thông tin!")
+      Swal.fire({
+        icon: "warning",
+        title: "Thiếu thông tin!",
+        text: "Vui lòng nhập đầy đủ các trường"
+      })
       return
     }
 
@@ -79,30 +107,71 @@ export default function Classes() {
 
       setNewClass({ id: "", name: "", faculty: "" })
 
-      alert("Thêm lớp thành công!")
+      Swal.fire({
+        icon: "success",
+        title: "Thành công!",
+        text: "Đã thêm lớp"
+      })
     } catch (err) {
       console.error(err)
-      alert("Lỗi thêm lớp!")
+      Swal.fire({
+        icon: "error",
+        title: "Thêm lớp thất bại!",
+        text: "Vui lòng thử lại"
+      })
     }
   }
 
   // ===== DELETE CLASS =====
   const handleDelete = async (id) => {
-    if (confirm("Xóa lớp?")) {
-      await deleteClass(id)
-      await loadClasses()
-    }
+
+    const result = await Swal.fire({
+      title: "Xóa lớp?",
+      text: "Hành động này không thể hoàn tác!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Xóa",
+      cancelButtonText: "Hủy"
+    })
+
+    if (!result.isConfirmed) return
+
+    Swal.fire({
+      title: "Đang xóa...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading()
+      }
+    })
+
+    await deleteClass(id)
+    await loadClasses()
+
+    Swal.fire({
+      icon: "success",
+      title: "Đã xóa lớp",
+      timer: 1500,
+      showConfirmButton: false
+    })
   }
 
   // ===== ADD STUDENT =====
   const handleAddStudent = async () => {
     if (!selectedClass) {
-      alert("Chọn lớp trước!")
+      Swal.fire({
+        icon: "warning",
+        title: "Chưa chọn lớp!",
+        text: "Vui lòng chọn lớp trước khi thực hiện"
+      })
       return
     }
 
     if (!newStudent.id || !newStudent.name) {
-      alert("Nhập đủ thông tin!")
+      Swal.fire({
+        icon: "warning",
+        title: "Thiếu thông tin!",
+        text: "Vui lòng nhập đầy đủ"
+      })
       return
     }
 
@@ -124,27 +193,43 @@ export default function Classes() {
 
       setNewStudent({ id: "", name: "", email: "" })
 
-      alert("Thêm thành công")
+      Swal.fire({
+        icon: "success",
+        title: "Thành công!",
+        text: "Đã thêm sinh viên"
+      })
     } catch (err) {
       console.error(err)
-      alert("Lỗi thêm sinh viên")
+      Swal.fire({
+        icon: "error",
+        title: "Thêm sinh viên thất bại!",
+        text: "Vui lòng thử lại"
+      })
     }
   }
+  
 
   const handleUpdateStudent = async () => {
     try {
-      await fetch(`http://localhost:5000/students/${newStudent.id}`, {
+      await fetch(`http://localhost:5000/update-student-full/${newStudent.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
+          id: newStudent.id,
           name: newStudent.name,
-          email: newStudent.email
+          email: newStudent.email,
+          class_ids: [selectedClass] // 👈 QUAN TRỌNG
         })
       })
 
-      alert("Cập nhật thành công")
+      Swal.fire({
+        icon: "success",
+        title: "Cập nhật thành công",
+        timer: 2000,
+        showConfirmButton: false
+      })
 
       setEditingStudent(null)
       setNewStudent({ id: "", name: "", email: "" })
@@ -152,7 +237,104 @@ export default function Classes() {
       loadStudents()
     } catch (err) {
       console.error(err)
-      alert("Lỗi cập nhật")
+      Swal.fire({
+        icon: "error",
+        title: "Lỗi cập nhật",
+        text: "Vui lòng thử lại",
+        timer: 2000,
+        showConfirmButton: false
+      })
+    }
+  }
+
+  const handleUploadFile = async (e) => {
+    if (!selectedClass) {
+      Swal.fire({
+        icon: "warning",
+        title: "Chưa chọn lớp!",
+        text: "Vui lòng chọn lớp trước"
+      })
+      return
+    }
+
+    const file = e.target.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append("file", file)
+
+    try {
+      Swal.fire({
+        title: "Đang import...",
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      })
+
+      const res = await fetch(
+        `http://localhost:5000/upload-students-file/${selectedClass}`,
+        {
+          method: "POST",
+          body: formData
+        }
+      )
+
+      const data = await res.json()
+
+      Swal.fire({
+        icon: "success",
+        title: "Thành công!",
+        text: data.message
+      })
+
+      loadStudents()
+
+    } catch (err) {
+      console.error(err)
+
+      Swal.fire({
+        icon: "error",
+        title: "Upload thất bại!",
+        text: "File không hợp lệ"
+      })
+    }
+  }
+
+  const removeVietnameseTones = (str) => {
+    return str
+      .normalize("NFD") // tách dấu
+      .replace(/[\u0300-\u036f]/g, "") // xóa dấu
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .toLowerCase() // luôn chuyển về chữ thường
+  }
+
+  const handleUpdateClass = async () => {
+    try {
+      await fetch(`http://localhost:5000/classes/${newClass.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(newClass)
+      })
+
+      Swal.fire({
+        icon: "success",
+        title: "Cập nhật thành công",
+        timer: 1500,
+        showConfirmButton: false
+      })
+
+      setEditingClass(null)
+      setNewClass({ id: "", name: "", faculty: "" })
+      loadClasses()
+
+    } catch (err) {
+      console.error(err)
+      Swal.fire({
+        icon: "error",
+        title: "Cập nhật thất bại"
+      })
     }
   }
 
@@ -220,10 +402,10 @@ export default function Classes() {
                 </select>
 
                 <button
-                  onClick={handleAddClass}
+                  onClick={editingClass ? handleUpdateClass : handleAddClass}
                   className="w-full bg-blue-500 text-white p-3 rounded-lg"
                 >
-                  ➕ Thêm lớp
+                  {editingClass ? "✏️ Cập nhật lớp" : "➕ Thêm lớp"}
                 </button>
               </div>
             </div>
@@ -253,7 +435,40 @@ export default function Classes() {
                           <p>{c.name}</p>
                           <p className="text-sm text-gray-500">{c.id}</p>
                         </div>
-                        <FaBook />
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setMenuClassOpenId(menuClassOpenId === c.id ? null : c.id)
+                            }}
+                            className="text-lg p-1 hover:text-blue-500"
+                          >
+                            <FaBook />
+                          </button>
+
+                          {menuClassOpenId === c.id && (
+                            <div 
+                            ref={classMenuRef}
+                            className="absolute right-0 mt-2 bg-white border rounded shadow w-32 z-10">
+
+                              {/* EDIT */}
+                              <button
+                                onClick={() => {
+                                  setEditingClass(c)
+                                  setNewClass({
+                                    id: c.id,
+                                    name: c.name,
+                                    faculty: c.faculty
+                                  })
+                                  setMenuClassOpenId(null)
+                                }}
+                                className="block w-full text-left px-3 py-2 hover:bg-gray-100"
+                              >
+                                ✏️ Chỉnh sửa
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -312,12 +527,24 @@ export default function Classes() {
                   className="border p-3 rounded-lg md:col-span-2"
                 />
 
-                <button
-                  onClick={editingStudent ? handleUpdateStudent : handleAddStudent}
-                  className="md:col-span-2 bg-blue-500 text-white p-3 rounded-lg"
-                >
-                  {editingStudent ? "✏️ Cập nhật sinh viên" : "➕ Thêm sinh viên"}
-                </button>
+                <div className="md:col-span-2 flex gap-4">
+                  <button
+                    onClick={editingStudent ? handleUpdateStudent : handleAddStudent}
+                    className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg"
+                  >
+                    {editingStudent ? "✏️ Cập nhật sinh viên" : "➕ Thêm sinh viên"}
+                  </button>
+
+                  <label className="flex-1 text-center bg-green-500 text-white px-4 py-2 rounded cursor-pointer">
+                    📁 Upload danh sách
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx"
+                      hidden
+                      onChange={handleUploadFile}
+                    />
+                  </label>
+                </div>
 
               </div>
 
@@ -325,9 +552,15 @@ export default function Classes() {
               <div className="space-y-2">
 
                 {students
-                  .filter((sv) =>
-                    sv.id.toLowerCase().includes(searchStudent.toLowerCase())
-                  )
+                  .filter((sv) => {
+                    const keyword = removeVietnameseTones(searchStudent)
+
+                    return (
+                      removeVietnameseTones(sv.id).includes(keyword) ||
+                      removeVietnameseTones(sv.name).includes(keyword) ||
+                      removeVietnameseTones(sv.email).includes(keyword)
+                    )
+                  })
                   .map((sv) => (
                     <div key={sv.id} className="p-3 border rounded-lg flex justify-between relative">
 
@@ -353,7 +586,10 @@ export default function Classes() {
 
                           {/* MENU */}
                           {menuOpenId === sv.id && (
-                            <div className="absolute right-0 mt-2 bg-white border rounded shadow w-32 z-10">
+                            <div
+                              ref={studentMenuRef}   // ✅ đúng vị trí
+                              className="absolute right-0 mt-2 bg-white border rounded shadow w-32 z-10"
+                            >
 
                               <button
                                 onClick={() => {
@@ -373,12 +609,40 @@ export default function Classes() {
 
                               <button
                                 onClick={async () => {
-                                  if (window.confirm("Xóa sinh viên?")) {
+
+                                  const result = await Swal.fire({
+                                    title: "Xóa sinh viên?",
+                                    text: "Hành động này không thể hoàn tác!",
+                                    icon: "warning",
+                                    showCancelButton: true,
+                                    confirmButtonText: "Xóa",
+                                    cancelButtonText: "Hủy"
+                                  })
+
+                                  if (result.isConfirmed) {
+
+                                    Swal.fire({
+                                      title: "Đang xóa...",
+                                      allowOutsideClick: false,
+                                      didOpen: () => {
+                                        Swal.showLoading()
+                                      }
+                                    })
+
                                     await fetch(`http://localhost:5000/students/${sv.id}`, {
                                       method: "DELETE"
                                     })
+
                                     loadStudents()
+
+                                    Swal.fire({
+                                      icon: "success",
+                                      title: "Đã xóa sinh viên",
+                                      timer: 1500,
+                                      showConfirmButton: false
+                                    })
                                   }
+
                                   setMenuOpenId(null)
                                 }}
                                 className="block w-full text-left px-3 py-2 text-red-500 hover:bg-gray-100"

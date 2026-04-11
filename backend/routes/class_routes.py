@@ -62,3 +62,24 @@ def delete_class(id):
     db.close()
 
     return jsonify({"message": "Class deleted"})
+
+
+
+@class_bp.route('/classes/<id>', methods=['PUT'])
+def update_class(id):
+    data = request.json
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE classes
+        SET name=%s, faculty=%s
+        WHERE id=%s
+    """, (data['name'], data['faculty'], id))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({"message": "Updated successfully"})

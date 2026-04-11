@@ -65,15 +65,12 @@ export const deleteStudent = async (id) => {
 // ===== UPDATE =====
 export const updateStudent = async (id, data) => {
   try {
-    const res = await fetch(`${API}/students/${id}`, {
+    const res = await fetch(`${API}/update-student-full/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        name: data.name,
-        email: data.email
-      })
+      body: JSON.stringify(data) // 👈 gửi full luôn
     })
 
     if (!res.ok) throw new Error("Update thất bại")

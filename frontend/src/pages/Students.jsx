@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import MainLayout from "../layout/MainLayout"
+import Swal from "sweetalert2"
 import {
   FaUserFriends, FaSave, FaTrash
 } from "react-icons/fa"
@@ -27,6 +28,13 @@ export default function Students() {
   const [students, setStudents] = useState([])
 
   const [selectedClass, setSelectedClass] = useState("")
+  const [classes, setClasses] = useState([])
+
+  const [openDropdownId, setOpenDropdownId] = useState(null)
+
+  const [images, setImages] = useState([])
+  const [previewImage, setPreviewImage] = useState(null)
+  const [search, setSearch] = useState("")
 
   const [form, setForm] = useState({
     id: "",
@@ -48,6 +56,18 @@ export default function Students() {
   const removeUploadedImage = (index) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index))
   }
+ 
+   // ===== LOAD CLASS =====
+  useEffect(() => {
+    loadStudents()
+    loadClasses()
+  }, [])
+
+  const loadClasses = async () => {
+    const res = await fetch("http://localhost:5000/classes")
+    const data = await res.json()
+    setClasses(data)
+  }
 
   // ===== LOAD DATA =====
   useEffect(() => {
@@ -61,7 +81,11 @@ export default function Students() {
 
       setStudents(data || [])
     } catch {
-      alert("Lỗi load dữ liệu")
+      Swal.fire({
+        icon: "error",
+        title: "Không tải được dữ liệu!",
+        text: "Vui lòng thử lại"
+      })
     }
   }
 
@@ -81,7 +105,11 @@ export default function Students() {
         setStream(mediaStream)
         setIsCameraOn(true)
       } catch {
-        alert("Không mở được camera")
+        Swal.fire({
+          icon: "error",
+          title: "Không mở được camera!",
+          text: "Vui lòng kiểm tra quyền truy cập camera"
+        })
       }
     }
   }
@@ -115,86 +143,212 @@ export default function Students() {
   }
 
   const uploadImages = async (studentId) => {
-    if (!studentId) {
-      alert("Nhập mã SV trước!")
-      return
-    }
-
     const formData = new FormData()
 
-    // camera images
+    // ảnh chụp
     capturedImages.forEach((img, index) => {
       const blob = dataURLtoBlob(img)
-      formData.append("images", blob, `image_${index}.png`)
+      formData.append("images", blob, `cam_${index}.png`)
     })
 
-    // upload file images
+    // ảnh upload
     uploadedFiles.forEach((file) => {
       formData.append("images", file)
     })
 
-    try {
-      await fetch("http://localhost:5000/upload-images/" + studentId, {
-        method: "POST",
-        body: formData
-      })
-
-      alert("Upload thành công!")
-      setCapturedImages([])
-      setUploadedFiles([])
-    } catch {
-      alert("Upload lỗi")
-    }
+    await fetch(`http://localhost:5000/upload-images/${studentId}`, {
+      method: "POST",
+      body: formData
+    })
   }
 
   // ===== ADD =====
   const handleRegister = async () => {
     if (!form.id || !form.name || !form.email) {
-      alert("Nhập đầy đủ thông tin!")
+      Swal.fire({
+        icon: "warning",
+        title: "Thiếu thông tin!",
+        text: "Vui lòng nhập đầy đủ các trường"
+      })
       return
     }
 
     try {
+      // 1. lưu student
       await addStudent({
         id: form.id,
         name: form.name,
-        email: form.email,
-        classId: form.classId
+        email: form.email
       })
+
+      // 2. enroll class
+      if (form.classId) {
+        await fetch("http://localhost:5000/enrollments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            studentId: form.id,
+            classId: form.classId
+          })
+        })
+      }
+
+      // 3. upload ảnh
       await uploadImages(form.id)
 
-      alert("Đăng ký thành công!")
+      // 🔴 tắt camera sau khi đăng ký
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
 
-      setForm({
-        id: "",
-        name: "",
-        email: "",
-        classId: "LTCB"
+      if (videoRef.current) {
+        videoRef.current.srcObject = null
+      }
+
+      setStream(null)
+      setIsCameraOn(false)
+
+      Swal.fire({
+        icon: "success",
+        title: "Thành công!",
+        text: "Đăng ký sinh viên thành công",
+        timer: 2000,
+        showConfirmButton: false
       })
 
+      // reset
+      setForm({ id: "", name: "", email: "", classId: "" })
       setCapturedImages([])
       setUploadedFiles([])
 
       loadStudents()
       setActiveTab("list")
 
-    } catch {
-      alert("Lỗi thêm sinh viên")
+    } catch (err) {
+      console.error(err)
+      Swal.fire({
+        icon: "error",
+        title: "Đăng ký thất bại!",
+        text: "Vui lòng thử lại"
+      })
     }
   }
 
   // ===== DELETE =====
   const handleDelete = async (id) => {
-    if (!window.confirm("Xóa sinh viên?")) return
+
+    const result = await Swal.fire({
+      title: "Xóa sinh viên?",
+      text: "Hành động này không thể hoàn tác!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Xóa",
+      cancelButtonText: "Hủy"
+    })
+
+    if (!result.isConfirmed) return
+
     await deleteStudent(id)
+
+    Swal.fire({
+      icon: "success",
+      title: "Đã xóa thành công",
+      timer: 1500,
+      showConfirmButton: false
+    })
+
     loadStudents()
   }
 
   // ===== UPDATE =====
   const handleSave = async () => {
-    await updateStudent(editData.id, editData)
-    alert("Cập nhật thành công!")
-    loadStudents()
+    try {
+      await fetch(`http://localhost:5000/update-student-full/${editData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editData)
+      })
+
+      Swal.fire({
+        icon: "success",
+        title: "Cập nhật thành công!",
+        timer: 1500,
+        showConfirmButton: false
+      })
+
+      loadStudents()
+
+    } catch (err) {
+      console.error(err)
+
+      Swal.fire({
+        icon: "error",
+        title: "Lỗi cập nhật!",
+        text: "Vui lòng thử lại"
+      })
+    }
+  }
+
+  const loadImages = async (studentId) => {
+    const res = await fetch(`http://localhost:5000/student-images/${studentId}`)
+    const data = await res.json()
+    setImages(data)
+  }
+
+  const handleDeleteImage = async (imageId) => {
+
+    const result = await Swal.fire({
+      title: "Xóa ảnh này?",
+      text: "Ảnh sẽ bị xóa vĩnh viễn!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Xóa",
+      cancelButtonText: "Hủy"
+    })
+
+    if (!result.isConfirmed) return
+
+    Swal.fire({
+      title: "Đang xóa...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading()
+      }
+    })
+
+    await fetch(`http://localhost:5000/student-images/${imageId}`, {
+      method: "DELETE"
+    })
+
+    loadImages(openId)
+
+    Swal.fire({
+      icon: "success",
+      title: "Đã xóa ảnh",
+      timer: 1500,
+      showConfirmButton: false
+    })
+  }
+
+  const handleAddImage = (sv) => {
+    // chuyển tab
+    setActiveTab("add")
+
+    // truyền dữ liệu qua form
+    setForm({
+      id: sv.id,
+      name: sv.name,
+      email: sv.email,
+      classId: sv.class_ids?.[0] || "" // lấy lớp đầu tiên (nếu có)
+    })
+
+    // reset ảnh cũ (tránh dính dữ liệu)
+    setCapturedImages([])
+    setUploadedFiles([])
   }
 
   return (
@@ -216,22 +370,51 @@ export default function Students() {
         </div>
 
         {/* TAB */}
-        <div className="flex gap-4 mb-6">
-          <button onClick={() => setActiveTab("list")}
-            className={`px-5 py-2 rounded-lg ${activeTab === "list" ? "bg-purple-500 text-white" : "bg-white border"}`}>
-            📋 Danh sách sinh viên
-          </button>
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex gap-4">
+            <button
+              onClick={() => setActiveTab("list")}
+              className={`px-5 py-2 rounded-lg ${
+                activeTab === "list" ? "bg-purple-500 text-white" : "bg-white border"
+              }`}
+            >
+              📋 Danh sách sinh viên
+            </button>
 
-          <button onClick={() => setActiveTab("add")}
-            className={`px-5 py-2 rounded-lg ${activeTab === "add" ? "bg-purple-500 text-white" : "bg-white border"}`}>
-            ➕ Đăng ký mới
-          </button>
+            <button
+              onClick={() => setActiveTab("add")}
+              className={`px-5 py-2 rounded-lg ${
+                activeTab === "add" ? "bg-purple-500 text-white" : "bg-white border"
+              }`}
+            >
+              ➕ Đăng ký mới
+            </button>
+          </div>
+
+          {/* RIGHT: SEARCH */}
+          <input
+            type="text"
+            placeholder="🔍 Tìm theo tên hoặc mã SV..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="border px-4 py-2 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+
         </div>
 
         {/* ================= LIST ================= */}
         {activeTab === "list" && (
           <div className="space-y-4">
-            {students.map((sv) => {
+            {students
+              .filter((sv) => {
+                const keyword = search.toLowerCase().trim()
+
+                return (
+                  sv.name?.toLowerCase().includes(keyword) ||
+                  sv.id?.toLowerCase().includes(keyword)
+                )
+              })
+              .map((sv) => {
               const isOpen = openId === sv.id
 
               return (
@@ -240,7 +423,11 @@ export default function Students() {
                   <div
                     onClick={() => {
                       setOpenId(isOpen ? null : sv.id)
-                      setEditData(sv)
+                      setEditData({
+                        ...sv,
+                        class_ids: sv.class_ids || []
+                      })
+                      loadImages(sv.id)
                     }}
                     className="flex justify-between items-center p-4 cursor-pointer"
                   >
@@ -251,7 +438,7 @@ export default function Students() {
                       </p>
                     </div>
                     <span className="text-xs bg-gray-100 px-3 py-1 rounded">
-                      {sv.class_id || "chưa có lớp"}
+                      {sv.class_names || "chưa có lớp"}
                     </span>
                   </div>  
 
@@ -266,9 +453,7 @@ export default function Students() {
 
                         <div className="mt-3 space-y-2 text-sm text-gray-600">
 
-                          <p>
-                            📁 <span className="font-medium">Lớp:</span> {sv.class_id || "LTCB"}
-                          </p>
+                          <p> 📁 <span className="font-medium">Lớp:</span>  {sv.class_names || "Chưa có"}</p>
 
                           <p>
                             📧 <span className="font-medium">Email:</span> {sv.email}
@@ -279,6 +464,40 @@ export default function Students() {
                           </p>
 
                         </div>
+                      </div>
+
+                      {/* ===== DANH SÁCH ẢNH ===== */}
+                      <div className="bg-white rounded-xl border p-4">
+                        <p className="font-semibold mb-3">📸 Ảnh sinh viên</p>
+
+                        {images.length === 0 ? (
+                          <p className="text-gray-400 text-sm">Chưa có ảnh</p>
+                        ) : (
+                          <div className="grid grid-cols-4 gap-3">
+
+                            {images.map((img) => (
+                              <div key={img.id} className="relative group">
+
+                                <img
+                                  src={`http://localhost:5000/images/${img.image_path}`}  // ✅ FIX
+                                  className="w-full h-24 object-cover rounded-lg cursor-pointer"
+                                  onClick={() => setPreviewImage(img.image_path)}
+                                />
+
+                                {/* NÚT XÓA */}
+                                <button
+                                  onClick={() => handleDeleteImage(img.id)}
+                                  className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full text-xs 
+                                            flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                                >
+                                  ✕
+                                </button>
+
+                              </div>
+                            ))}
+
+                          </div>
+                        )}
                       </div>
 
                       {/* ===== SỬA THÔNG TIN ===== */}
@@ -306,17 +525,60 @@ export default function Students() {
                           {/* LỚP */}
                           <div>
                             <label className="text-sm text-gray-600">Lớp mới</label>
-                            <select
-                              value={editData.class_id || ""}
-                              onChange={(e) =>
-                                setEditData({ ...editData, class_id: e.target.value })
-                              }
-                              className="border rounded-lg p-2 w-full mt-1 bg-gray-50"
-                            >
-                              <option value="LTCB">LTCB</option>
-                              <option value="KTPM">KTPM</option>
-                              <option value="HTTT">HTTT</option>
-                            </select>
+                           <div className="relative mt-1">
+
+                              {/* BOX HIỂN THỊ */}
+                              <div
+                                onClick={() =>   setOpenDropdownId(openDropdownId === sv.id ? null : sv.id)}
+                                className="border rounded-lg p-2 bg-gray-50 cursor-pointer flex justify-between items-center"
+                              >
+                                <span className="text-sm">
+                                  {editData.class_ids?.length > 0
+                                    ? classes
+                                        .filter(c => editData.class_ids.includes(c.id))
+                                        .map(c => c.name)
+                                        .join(", ")
+                                    : "-- Chọn lớp --"}
+                                </span>
+                                <span>▼</span>
+                              </div>
+
+                              {/* DROPDOWN */}
+                              {openDropdownId === sv.id && (
+                                <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow max-h-48 overflow-y-auto">
+
+                                  {classes.map((c) => (
+                                    <label
+                                      key={c.id}
+                                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        className="accent-blue-500"
+                                        checked={editData.class_ids?.includes(c.id)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setEditData({
+                                              ...editData,
+                                              class_ids: [...(editData.class_ids || []), c.id]
+                                            })
+                                          } else {
+                                            setEditData({
+                                              ...editData,
+                                              class_ids: editData.class_ids.filter(id => id !== c.id)
+                                            })
+                                          }
+                                        }}
+                                      />
+
+                                      <span>{c.name}</span>
+                                    </label>
+                                  ))}
+
+                                </div>
+                              )}
+
+                            </div>
                           </div>
 
                         </div>
@@ -336,22 +598,29 @@ export default function Students() {
                         {/* BUTTON */}
                         <div className="flex gap-3 mt-6">
 
+                          {/* LƯU */}
                           <button
                             onClick={handleSave}
-                            className="flex-1 border rounded-lg py-2 flex items-center justify-center gap-2 hover:bg-gray-100"
+                            className="flex-1 bg-blue-500 text-white rounded-lg py-2 flex items-center justify-center gap-2 
+                                      hover:bg-blue-600 transition shadow-sm"
                           >
                             💾 Lưu
                           </button>
 
+                          {/* THÊM ẢNH */}
                           <button
-                            className="flex-1 border rounded-lg py-2 flex items-center justify-center gap-2 hover:bg-gray-100"
+                            onClick={() => handleAddImage(sv)}
+                            className="flex-1 bg-green-500 text-white rounded-lg py-2 flex items-center justify-center gap-2 
+                                      hover:bg-green-600 transition shadow-sm"
                           >
                             ➕ Thêm ảnh
                           </button>
 
+                          {/* XÓA */}
                           <button
                             onClick={() => handleDelete(sv.id)}
-                            className="flex-1 border rounded-lg py-2 flex items-center justify-center gap-2 hover:bg-red-50 text-red-600"
+                            className="flex-1 bg-red-500 text-white rounded-lg py-2 flex items-center justify-center gap-2 
+                                      hover:bg-red-600 transition shadow-sm"
                           >
                             🗑 Xóa
                           </button>
@@ -392,8 +661,12 @@ export default function Students() {
                 value={form.classId}
                 onChange={(e) => setForm({ ...form, classId: e.target.value })}
               >
-                <option value="LTCB">LTCB</option>
-                <option value="JV">JV</option>
+                <option value="">-- Chọn lớp --</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -512,6 +785,7 @@ export default function Students() {
                 className="mb-3"
               />
             )}
+           
 
             {/* PREVIEW */}
             <div className="grid grid-cols-4 gap-2 mb-3">
@@ -564,6 +838,31 @@ export default function Students() {
 
           </div>
         )}
+         {previewImage && (
+              <div
+                onClick={() => setPreviewImage(null)}
+                className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50"
+              >
+                {/* NGĂN click ảnh bị đóng */}
+                <div onClick={(e) => e.stopPropagation()} className="relative">
+
+                  {/* ẢNH FULL */}
+                  <img
+                    src={`http://localhost:5000/images/${previewImage}`}
+                    className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-lg"
+                  />
+
+                  {/* NÚT ĐÓNG */}
+                  <button
+                    onClick={() => setPreviewImage(null)}
+                    className="absolute -top-3 -right-3 bg-white text-black w-8 h-8 rounded-full shadow flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+
+                </div>
+              </div>
+            )}
 
       </div>
     </MainLayout>
