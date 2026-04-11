@@ -6,3 +6,4 @@ build
 .vite
 database/firebase_config.json
 .env
+backend/data/students/
