@@ -1,4 +1,4 @@
-const API = "http://localhost:5000"
+const API = "http://localhost:5001"
 
 // ===== LẤY DANH SÁCH SINH VIÊN THEO LỚP =====
 export const getStudentsByClass = async (classId) => {
@@ -18,14 +18,14 @@ export const getStudentsByClass = async (classId) => {
 }
 
 export const getAllStudents = async () => {
-  const res = await fetch("http://localhost:5000/students")
+  const res = await fetch("http://localhost:5001/students")
   return await res.json()
 }
 
 // ===== THÊM SINH VIÊN =====
 export const addStudent = async (data) => {
   try {
-    const res = await fetch(`http://localhost:5000/students`, {
+    const res = await fetch(`http://localhost:5001/students`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -84,7 +84,7 @@ export const updateStudent = async (id, data) => {
 
 export const addEnrollment = async (data) => {
   try {
-    const res = await fetch("http://localhost:5000/enrollments", {
+    const res = await fetch("http://localhost:5001/enrollments", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

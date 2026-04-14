@@ -1,4 +1,4 @@
-const API = "http://localhost:5000"
+const API = "http://localhost:5001"
 
 // GET ALL CLASSES
 export const getClasses = async () => {

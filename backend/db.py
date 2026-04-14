@@ -5,5 +5,5 @@ def get_db():
         host="localhost",
         user="root",
         password="",
-        database="face_attendance"
+        database="dacn1"
     )

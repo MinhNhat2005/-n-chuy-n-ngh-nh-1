@@ -35,6 +35,7 @@ export default function Students() {
   const [images, setImages] = useState([])
   const [previewImage, setPreviewImage] = useState(null)
   const [search, setSearch] = useState("")
+  const [ipUrl, setIpUrl] = useState("http://192.168.");
 
   const [form, setForm] = useState({
     id: "",
@@ -64,7 +65,7 @@ export default function Students() {
   }, [])
 
   const loadClasses = async () => {
-    const res = await fetch("http://localhost:5000/classes")
+    const res = await fetch("http://localhost:5001/classes")
     const data = await res.json()
     setClasses(data)
   }
@@ -91,38 +92,64 @@ export default function Students() {
 
   // ===== CAMERA =====
   const toggleCamera = async () => {
+
+    if (cameraSource === "ip") {
+      if (!ipUrl) {
+        Swal.fire("Nhập IP camera trước!")
+        return
+      }
+
+      setIsCameraOn(prev => !prev)
+      return
+    }
+
+    // webcam
     if (isCameraOn) {
-      // tắt camera
       stream?.getTracks().forEach(track => track.stop())
       videoRef.current.srcObject = null
       setStream(null)
       setIsCameraOn(false)
     } else {
-      // mở camera
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true })
         videoRef.current.srcObject = mediaStream
         setStream(mediaStream)
         setIsCameraOn(true)
       } catch {
-        Swal.fire({
-          icon: "error",
-          title: "Không mở được camera!",
-          text: "Vui lòng kiểm tra quyền truy cập camera"
-        })
+        Swal.fire("Không mở được webcam")
       }
     }
   }
 
   const captureImage = () => {
     const canvas = canvasRef.current
-    const video = videoRef.current
-
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-
     const ctx = canvas.getContext("2d")
-    ctx.drawImage(video, 0, 0)
+
+    if (cameraSource === "webcam") {
+      const video = videoRef.current
+
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+
+      ctx.drawImage(video, 0, 0)
+
+    } else if (cameraSource === "ip") {
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.src = `${ipUrl}/shot.jpg`
+
+      img.onload = () => {
+        canvas.width = img.width
+        canvas.height = img.height
+
+        ctx.drawImage(img, 0, 0)
+
+        const imageData = canvas.toDataURL("image/png")
+        setCapturedImages(prev => [...prev, imageData])
+      }
+
+      return
+    }
 
     const imageData = canvas.toDataURL("image/png")
     setCapturedImages(prev => [...prev, imageData])
@@ -156,7 +183,7 @@ export default function Students() {
       formData.append("images", file)
     })
 
-    await fetch(`http://localhost:5000/upload-images/${studentId}`, {
+    await fetch(`http://localhost:5001/upload-images/${studentId}`, {
       method: "POST",
       body: formData
     })
@@ -183,7 +210,7 @@ export default function Students() {
 
       // 2. enroll class
       if (form.classId) {
-        await fetch("http://localhost:5000/enrollments", {
+        await fetch("http://localhost:5001/enrollments", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -267,7 +294,7 @@ export default function Students() {
   // ===== UPDATE =====
   const handleSave = async () => {
     try {
-      await fetch(`http://localhost:5000/update-student-full/${editData.id}`, {
+      await fetch(`http://localhost:5001/update-student-full/${editData.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editData)
@@ -294,7 +321,7 @@ export default function Students() {
   }
 
   const loadImages = async (studentId) => {
-    const res = await fetch(`http://localhost:5000/student-images/${studentId}`)
+    const res = await fetch(`http://localhost:5001/student-images/${studentId}`)
     const data = await res.json()
     setImages(data)
   }
@@ -320,7 +347,7 @@ export default function Students() {
       }
     })
 
-    await fetch(`http://localhost:5000/student-images/${imageId}`, {
+    await fetch(`http://localhost:5001/student-images/${imageId}`, {
       method: "DELETE"
     })
 
@@ -479,7 +506,7 @@ export default function Students() {
                               <div key={img.id} className="relative group">
 
                                 <img
-                                  src={`http://localhost:5000/images/${img.image_path}`}  // ✅ FIX
+                                  src={`http://localhost:5001/images/${img.image_path}`}  // ✅ FIX
                                   className="w-full h-24 object-cover rounded-lg cursor-pointer"
                                   onClick={() => setPreviewImage(img.image_path)}
                                 />
@@ -709,9 +736,15 @@ export default function Students() {
 
               <div className="flex gap-3 w-full max-w-md">
 
+                {/* WEBCAM */}
                 <div
-                  onClick={() => setCameraSource("webcam")}
-                  className={`flex-1 px-3 py-2 text-center rounded-md border cursor-pointer text-sm
+                  onClick={() => {
+                    setCameraSource("webcam")
+
+                    // 👉 nếu đang dùng IP thì reset trạng thái
+                    setIsCameraOn(false)
+                  }}
+                  className={`flex-1 px-3 py-2 text-center rounded-md border cursor-pointer text-sm transition
                     ${cameraSource === "webcam"
                       ? "bg-green-50 border-green-500"
                       : "hover:border-gray-400"
@@ -720,9 +753,26 @@ export default function Students() {
                   💻 Webcam
                 </div>
 
+                {/* IP CAMERA */}
                 <div
-                  onClick={() => setCameraSource("ip")}
-                  className={`flex-1 px-3 py-2 text-center rounded-md border cursor-pointer text-sm
+                  onClick={() => {
+
+                    // 🔴 QUAN TRỌNG: tắt webcam nếu đang chạy
+                    if (stream) {
+                      stream.getTracks().forEach(track => track.stop())
+                    }
+
+                    if (videoRef.current) {
+                      videoRef.current.srcObject = null
+                    }
+
+                    setStream(null)
+                    setIsCameraOn(false)
+
+                    // 👉 chuyển sang IP
+                    setCameraSource("ip")
+                  }}
+                  className={`flex-1 px-3 py-2 text-center rounded-md border cursor-pointer text-sm transition
                     ${cameraSource === "ip"
                       ? "bg-green-50 border-green-500"
                       : "hover:border-gray-400"
@@ -735,6 +785,25 @@ export default function Students() {
                 </div>
               )}
 
+            {cameraSource === "ip" && (
+              <div className="mb-3">
+                
+                {/* LABEL */}
+                <p className="text-sm text-gray-600 mb-1">
+                  Nhập IP camera
+                </p>
+
+                {/* INPUT */}
+                <input
+                  placeholder="http://192.168.xxx.xxx:8080"
+                  value={ipUrl}
+                  onChange={(e) => setIpUrl(e.target.value)}
+                  className="border p-2 w-full rounded"
+                />
+
+              </div>
+            )}
+
             {/* CAMERA */}
             {uploadType === "camera" && (
               <>
@@ -745,11 +814,21 @@ export default function Students() {
                       <p className="text-gray-400 text-lg">video stream</p>
                     )}
 
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      className={`w-full h-full object-cover ${!isCameraOn && "hidden"}`}
-                    />
+                    {cameraSource === "webcam" ? (
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        className={`w-full h-full object-cover ${!isCameraOn && "hidden"}`}
+                      />
+                    ) : (
+                      isCameraOn && ipUrl && (
+                        <img
+                          src={`${ipUrl}/video`}
+                          className="w-full h-full object-cover"
+                          alt="IP Camera"
+                        />
+                      )
+                    )}
 
                   </div>
                 </div>
@@ -848,7 +927,7 @@ export default function Students() {
 
                   {/* ẢNH FULL */}
                   <img
-                    src={`http://localhost:5000/images/${previewImage}`}
+                    src={`http://localhost:5001/images/${previewImage}`}
                     className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-lg"
                   />
 

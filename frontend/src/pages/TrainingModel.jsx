@@ -7,21 +7,30 @@ export default function TrainModel() {
   const [status, setStatus] = useState("idle"); // idle | training | done
   const [progress, setProgress] = useState(0);
 
-  const handleTrain = () => {
+  const handleTrain = async () => {
     setStatus("training");
     setProgress(0);
 
-    let percent = 0;
+    const fakeProgress = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) return prev;
+        return prev + 10;
+      });
+    }, 300);
 
-    const interval = setInterval(() => {
-      percent += 10;
-      setProgress(percent);
+    try {
+      await fetch("http://localhost:5001/api/train", {
+        method: "POST"
+      });
 
-      if (percent >= 100) {
-        clearInterval(interval);
-        setStatus("done");
-      }
-    }, 400);
+      clearInterval(fakeProgress);
+      setProgress(100);
+      setStatus("done");
+
+    } catch (err) {
+      clearInterval(fakeProgress);
+      setStatus("idle");
+    }
   };
 
   return (

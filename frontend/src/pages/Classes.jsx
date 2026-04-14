@@ -211,7 +211,7 @@ export default function Classes() {
 
   const handleUpdateStudent = async () => {
     try {
-      await fetch(`http://localhost:5000/update-student-full/${newStudent.id}`, {
+      await fetch(`http://localhost:5001/update-student-full/${newStudent.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -271,7 +271,7 @@ export default function Classes() {
       })
 
       const res = await fetch(
-        `http://localhost:5000/upload-students-file/${selectedClass}`,
+        `http://localhost:5001/upload-students-file/${selectedClass}`,
         {
           method: "POST",
           body: formData
@@ -310,7 +310,7 @@ export default function Classes() {
 
   const handleUpdateClass = async () => {
     try {
-      await fetch(`http://localhost:5000/classes/${newClass.id}`, {
+      await fetch(`http://localhost:5001/classes/${newClass.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -629,7 +629,7 @@ export default function Classes() {
                                       }
                                     })
 
-                                    await fetch(`http://localhost:5000/students/${sv.id}`, {
+                                    await fetch(`http://localhost:5001/students/${sv.id}`, {
                                       method: "DELETE"
                                     })
 
