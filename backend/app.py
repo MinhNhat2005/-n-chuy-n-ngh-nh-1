@@ -8,7 +8,8 @@ from routes.recognize_routes import recognize_bp
 from routes.class_routes import class_bp
 from routes.student_routes import student_bp
 from routes.attendance_routes import attendance_bp
-
+from routes.history_routes import attendance_history_bp, attendance_export_bp
+from routes.stats_routes import stats_bp
 app = Flask(__name__)
 CORS(app)
 
@@ -32,7 +33,18 @@ app.register_blueprint(recognize_bp, url_prefix="/api")
 def home():
     return "Face Recognition API is running 🚀"
 # attendance
-app.register_blueprint(attendance_bp)
+app.register_blueprint(attendance_bp)   
+
+#history
+from routes.history_routes import attendance_export_bp
+app.register_blueprint(attendance_export_bp)
+app.register_blueprint(attendance_history_bp)
+@app.route('/history/<path:filename>')
+def serve_image(filename):
+    return send_from_directory('data/history', filename)
+
+# statistics
+app.register_blueprint(stats_bp)
 
 if __name__ == "__main__":
     app.run(port=5001, debug=True)

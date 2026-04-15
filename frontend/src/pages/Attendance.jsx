@@ -155,6 +155,7 @@ export default function Attendance() {
 
       const formData = new FormData();
       formData.append("frame", blob);
+      formData.append("classId", selectedClass);
 
       const res = await fetch("http://localhost:5001/api/recognize", {
         method: "POST",
@@ -162,6 +163,7 @@ export default function Attendance() {
       });
 
       const data = await res.json();
+      console.log("DETECTION:", data.results);
 
       if (data.results) {
         setDetections(data.results);
@@ -252,7 +254,8 @@ export default function Attendance() {
         body: JSON.stringify({
           studentId: d.id,
           studentName: d.name,
-          classId: selectedClass
+          classId: selectedClass,
+          image: d.image 
         })
       });
     } catch (err) {
