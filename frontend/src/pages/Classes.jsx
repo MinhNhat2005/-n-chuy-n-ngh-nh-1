@@ -39,6 +39,7 @@ export default function Classes() {
   })
 
   const faculties = [
+    { id:   "vku", name:  "VKU"},
     { id: "KHMT", name: "Khoa học máy tính" },
     { id: "KTMT_DT", name: "Kỹ thuật máy tính và Điện tử" },
     { id: "KTS_TMDT", name: "Kinh tế số và Thương mại điện tử" },

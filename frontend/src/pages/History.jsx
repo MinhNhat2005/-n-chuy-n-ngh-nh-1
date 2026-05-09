@@ -394,29 +394,39 @@ export default function AttendanceHistory() {
 
         )}
 
-        {/* MODAL IMAGE */}
+        {/* FACEBOOK STYLE IMAGE VIEWER */}
         {selectedImage && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-4 rounded-2xl shadow-xl max-w-md w-full">
+          <div
+            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center"
+          >
 
-              <h2 className="font-semibold mb-3">🖼️ Ảnh điểm danh</h2>
+            {/* CLOSE */}
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-5 right-5 z-50 w-12 h-12 rounded-full
+                        bg-black/50 hover:bg-black/70 text-white text-2xl
+                        flex items-center justify-center"
+            >
+              ✕
+            </button>
 
-              <img
-                src={selectedImage}
-                className="w-full rounded-xl"
-              />
+            {/* IMAGE */}
+            <img
+              src={selectedImage}
+              alt=""
+              onClick={(e) => e.stopPropagation()}
+              className="
+                max-w-[95vw]
+                max-h-[95vh]
+                object-contain
+                rounded-xl
+                shadow-2xl
+              "
+            />
 
-              <button
-                onClick={() => setSelectedImage(null)}
-                className="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg"
-              >
-                Đóng
-              </button>
-
-            </div>
           </div>
         )}
-
       </div>
 
     </MainLayout>

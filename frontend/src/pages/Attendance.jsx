@@ -21,7 +21,7 @@ export default function Attendance() {
   const [savedIds, setSavedIds] = useState(new Set());
   const [activeTab, setActiveTab] = useState("scan"); // scan | students
   const [classStudents, setClassStudents] = useState([]); 
-  const [selectedSession, setSelectedSession] = useState("");
+  const [selectedSession, setSelectedSession] = useState("1");
   
 
   useEffect(() => {
@@ -118,36 +118,39 @@ export default function Attendance() {
     if (!detections || detections.length === 0) return;
 
     detections.forEach((d) => {
-      if (d.name === "Unknown") return;
 
-      if (!savedIds.has(d.id)) {
+    // Unknown chỉ hiện box
+    if (d.name === "Unknown") return;
 
-        // 👉 thêm vào bảng vừa quét
-        setAttendanceList((prev) => {
-          console.log("ADD:", d.id); // debug
-          return [
-            ...prev,
-            {
-              id: d.id,
-              name: d.name,
-              time: d.time
-            }
-          ];
-        });
+    // Không thuộc lớp -> chỉ hiện tên
+    if (!d.isInClass) return;
 
-        // 👉 cập nhật danh sách lớp
-        setClassStudents((prev) =>
-          prev.map((s) =>
-            s.id === d.id ? { ...s, present: true } : s
-          )
-        );
+    if (!savedIds.has(d.id)) {
 
+      setAttendanceList((prev) => [
+        ...prev,
+        {
+          id: d.id,
+          name: d.name,
+          time: d.time
+        }
+      ]);
+
+      setClassStudents((prev) =>
+        prev.map((s) =>
+          s.id === d.id ? { ...s, present: true } : s
+        )
+      );
+
+      if (d.image) {
         saveAttendance(d);
-
-        setSavedIds(prev => new Set(prev).add(d.id));
       }
-    });
-  }, [detections]);
+
+      setSavedIds(prev => new Set(prev).add(d.id));
+    }
+  });
+
+  }, [detections, classStudents]);
 
   const loadClasses = async () => {
     try {
@@ -331,7 +334,7 @@ export default function Attendance() {
             value={selectedClass}
             onChange={(e) => {
               setSelectedClass(e.target.value);
-              setSelectedSession(""); // reset buổi khi đổi lớp
+              setSelectedSession("1"); // reset buổi khi đổi lớp
             }}
             className="w-full p-3 border rounded-xl"
           >
@@ -355,7 +358,6 @@ export default function Attendance() {
               onChange={(e) => setSelectedSession(e.target.value)}
               className="w-full p-3 border rounded-xl"
             >
-              
               {[...Array(15)].map((_, i) => (
                 <option key={i + 1} value={i + 1}>
                   Buổi {i + 1}
