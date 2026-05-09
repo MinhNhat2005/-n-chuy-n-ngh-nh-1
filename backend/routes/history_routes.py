@@ -1,16 +1,22 @@
 import os
-from flask import Blueprint, jsonify, request,send_file
+from io import BytesIO
+from flask import Blueprint, jsonify, request, send_file
 from db import get_db
-import pandas as pd
+
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as ExcelImage
-from datetime import datetime
-from io import BytesIO
+from openpyxl.styles import Font, Alignment
 
 attendance_history_bp = Blueprint("attendance_history", __name__)
+attendance_export_bp = Blueprint("attendance_export", __name__)
 
+
+# =========================================================
+# 📜 LẤY LỊCH SỬ ĐIỂM DANH
+# =========================================================
 @attendance_history_bp.route("/attendance/history", methods=["GET"])
 def get_history():
+
     try:
         db = get_db()
         cursor = db.cursor()
@@ -19,20 +25,33 @@ def get_history():
         class_id = request.args.get("classId", "all")
 
         query = """
-            SELECT id, student_id, student_name, class_id, time, image
+            SELECT 
+                id,
+                student_id,
+                student_name,
+                class_id,
+                session,
+                time,
+                image
             FROM attendance
             WHERE 1=1
         """
 
         params = []
 
-        # 🔍 search theo tên hoặc MSSV
+        # 🔍 SEARCH
         if search:
-            query += " AND (student_name LIKE %s OR student_id LIKE %s)"
+            query += """
+                AND (
+                    student_name LIKE %s
+                    OR student_id LIKE %s
+                )
+            """
+
             params.append(f"%{search}%")
             params.append(f"%{search}%")
 
-        # 🎯 filter theo lớp
+        # 🎯 FILTER CLASS
         if class_id != "all":
             query += " AND class_id = %s"
             params.append(class_id)
@@ -40,17 +59,21 @@ def get_history():
         query += " ORDER BY time DESC"
 
         cursor.execute(query, params)
+
         rows = cursor.fetchall()
 
         result = []
+
         for row in rows:
+
             result.append({
                 "id": row[0],
                 "student_id": row[1],
                 "student_name": row[2],
                 "class_name": row[3],
-                "time": row[4].strftime("%Y-%m-%d %H:%M:%S"),
-                "image": row[5]   # 🔥 QUAN TRỌNG
+                "session": row[4],
+                "time": row[5].strftime("%Y-%m-%d %H:%M:%S"),
+                "image": row[6]
             })
 
         cursor.close()
@@ -60,135 +83,236 @@ def get_history():
 
     except Exception as e:
         print("ERROR:", e)
-        return jsonify({"error": "Server error"}), 500
-    
 
+        return jsonify({
+            "error": "Server error"
+        }), 500
+
+
+# =========================================================
+# 🗑️ XÓA LỊCH SỬ ĐIỂM DANH
+# =========================================================
 @attendance_history_bp.route("/attendance/<int:id>", methods=["DELETE"])
 def delete_attendance(id):
+
     try:
         db = get_db()
         cursor = db.cursor()
 
-        # 🔥 1. Lấy đường dẫn ảnh
-        cursor.execute("SELECT image FROM attendance WHERE id = %s", (id,))
+        # 🔥 LẤY ẢNH
+        cursor.execute(
+            "SELECT image FROM attendance WHERE id = %s",
+            (id,)
+        )
+
         row = cursor.fetchone()
 
         if not row:
-            return jsonify({"error": "Record not found"}), 404
+            return jsonify({
+                "error": "Record not found"
+            }), 404
 
         image_path = row[0]
 
-        # 🔥 2. Xóa file ảnh (nếu có)
+        # 🔥 XÓA FILE ẢNH
         if image_path:
+
             try:
                 if os.path.exists(image_path):
                     os.remove(image_path)
-                    print("Deleted image:", image_path)
-            except Exception as e:
-                print("Error deleting image:", e)
 
-        # 🔥 3. Xóa DB
-        cursor.execute("DELETE FROM attendance WHERE id = %s", (id,))
+                    print("Deleted image:", image_path)
+
+            except Exception as e:
+                print("Delete image error:", e)
+
+        # 🔥 XÓA DB
+        cursor.execute(
+            "DELETE FROM attendance WHERE id = %s",
+            (id,)
+        )
+
         db.commit()
 
         cursor.close()
         db.close()
 
-        return jsonify({"message": "Deleted successfully"}), 200
+        return jsonify({
+            "message": "Deleted successfully"
+        }), 200
 
     except Exception as e:
         print("ERROR:", e)
-        return jsonify({"error": "Server error"}), 500
-    
-attendance_export_bp = Blueprint("attendance_export", __name__)
 
+        return jsonify({
+            "error": "Server error"
+        }), 500
+
+
+# =========================================================
+# 📤 EXPORT EXCEL
+# =========================================================
 @attendance_export_bp.route("/attendance/export", methods=["GET"])
 def export_excel():
-    db = get_db()
-    cursor = db.cursor()
 
-    # ===== LẤY FILTER =====
-    search = request.args.get("search", "")
-    class_id = request.args.get("classId", "all")
+    try:
+        db = get_db()
+        cursor = db.cursor()
 
-    query = """
-        SELECT student_id, student_name, class_id, time, image
-        FROM attendance
-        WHERE 1=1
-    """
+        search = request.args.get("search", "")
+        class_id = request.args.get("classId", "all")
 
-    params = []
+        query = """
+            SELECT
+                student_id,
+                student_name,
+                class_id,
+                session,
+                time,
+                image
+            FROM attendance
+            WHERE 1=1
+        """
 
-    # 🔍 search
-    if search:
-        query += " AND (student_name LIKE %s OR student_id LIKE %s)"
-        params.append(f"%{search}%")
-        params.append(f"%{search}%")
+        params = []
 
-    # 🎯 filter class
-    if class_id != "all":
-        query += " AND class_id = %s"
-        params.append(class_id)
+        # 🔍 SEARCH
+        if search:
+            query += """
+                AND (
+                    student_name LIKE %s
+                    OR student_id LIKE %s
+                )
+            """
 
-    query += " ORDER BY time DESC"
+            params.append(f"%{search}%")
+            params.append(f"%{search}%")
 
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
+        # 🎯 FILTER CLASS
+        if class_id != "all":
+            query += " AND class_id = %s"
+            params.append(class_id)
 
-    wb = Workbook()
-    ws = wb.active
+        query += " ORDER BY time DESC"
 
-    # ===== 🔥 TIÊU ĐỀ =====
-    if class_id == "all":
-        title = "DANH SÁCH ĐIỂM DANH SINH VIÊN (TẤT CẢ LỚP)"
-    else:
-        title = f"DANH SÁCH ĐIỂM DANH SINH VIÊN LỚP {class_id.upper()}"
+        cursor.execute(query, params)
 
-    ws.merge_cells("A1:E1")
-    ws["A1"] = title
+        rows = cursor.fetchall()
 
-    from openpyxl.styles import Font, Alignment
+        # =====================================================
+        # 📗 TẠO FILE EXCEL
+        # =====================================================
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance"
 
-    ws["A1"].font = Font(size=14, bold=True)
-    ws["A1"].alignment = Alignment(horizontal="center")
+        # =====================================================
+        # 🏷️ TITLE
+        # =====================================================
+        if class_id == "all":
+            title = "DANH SÁCH ĐIỂM DANH SINH VIÊN (TẤT CẢ LỚP)"
+        else:
+            title = f"DANH SÁCH ĐIỂM DANH LỚP {class_id.upper()}"
 
-    # ===== HEADER =====
-    ws.append(["MSSV", "Tên", "Lớp", "Thời gian", "Ảnh"])
+        ws.merge_cells("A1:F1")
 
-    row_index = 3
+        ws["A1"] = title
 
-    for row in rows:
-        student_id, name, class_id_row, time, image_path = row
+        ws["A1"].font = Font(
+            size=14,
+            bold=True
+        )
 
-        ws.cell(row=row_index, column=1, value=student_id)
-        ws.cell(row=row_index, column=2, value=name)
-        ws.cell(row=row_index, column=3, value=class_id_row)
-        ws.cell(row=row_index, column=4, value=str(time))
+        ws["A1"].alignment = Alignment(
+            horizontal="center"
+        )
 
-        # ✅ CHÈN ẢNH
-        if image_path and os.path.exists(image_path):
-            try:
-                img = ExcelImage(image_path)
-                img.width = 80
-                img.height = 80
-                ws.add_image(img, f"E{row_index}")
-                ws.row_dimensions[row_index].height = 60
-            except:
-                pass
+        # =====================================================
+        # 📌 HEADER
+        # =====================================================
+        headers = [
+            "MSSV",
+            "Họ tên",
+            "Lớp",
+            "Buổi",
+            "Thời gian",
+            "Ảnh"
+        ]
 
-        row_index += 1
+        ws.append(headers)
 
-    # ===== XUẤT FILE =====
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
+        # =====================================================
+        # 📏 WIDTH
+        # =====================================================
+        ws.column_dimensions["A"].width = 18
+        ws.column_dimensions["B"].width = 30
+        ws.column_dimensions["C"].width = 15
+        ws.column_dimensions["D"].width = 10
+        ws.column_dimensions["E"].width = 25
+        ws.column_dimensions["F"].width = 20
 
-    cursor.close()
-    db.close()
+        # =====================================================
+        # 📥 DATA
+        # =====================================================
+        row_index = 3
 
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name="attendance.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        for row in rows:
+
+            student_id = row[0]
+            name = row[1]
+            class_name = row[2]
+            session = row[3]
+            time = row[4]
+            image_path = row[5]
+
+            # TEXT
+            ws.cell(row=row_index, column=1, value=student_id)
+            ws.cell(row=row_index, column=2, value=name)
+            ws.cell(row=row_index, column=3, value=class_name)
+            ws.cell(row=row_index, column=4, value=session)
+            ws.cell(row=row_index, column=5, value=str(time))
+
+            # 🖼️ IMAGE
+            if image_path and os.path.exists(image_path):
+
+                try:
+                    img = ExcelImage(image_path)
+
+                    img.width = 80
+                    img.height = 80
+
+                    ws.add_image(img, f"F{row_index}")
+
+                    ws.row_dimensions[row_index].height = 65
+
+                except Exception as e:
+                    print("IMAGE ERROR:", e)
+
+            row_index += 1
+
+        # =====================================================
+        # 💾 EXPORT
+        # =====================================================
+        output = BytesIO()
+
+        wb.save(output)
+
+        output.seek(0)
+
+        cursor.close()
+        db.close()
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="attendance.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+
+        print("EXPORT ERROR:", e)
+
+        return jsonify({
+            "error": "Export failed"
+        }), 500

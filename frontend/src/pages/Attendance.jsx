@@ -19,6 +19,9 @@ export default function Attendance() {
   const imgRef = useRef(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [savedIds, setSavedIds] = useState(new Set());
+  const [activeTab, setActiveTab] = useState("scan"); // scan | students
+  const [classStudents, setClassStudents] = useState([]); 
+  const [selectedSession, setSelectedSession] = useState("");
   
 
   useEffect(() => {
@@ -84,28 +87,63 @@ export default function Attendance() {
     });
 
   }, [detections, cameraSource]);
+ 
+  // load danh sách sinh viên theo lớp
+  useEffect(() => {
+    if (selectedClass) {
+      loadStudents();
+    }
+  }, [selectedClass]);
+
+  const loadStudents = async () => {
+    try {
+      const res = await fetch(
+        `http://localhost:5001/students/class/${selectedClass}`
+      );
+      const data = await res.json();
+
+      // thêm trạng thái
+      const mapped = data.map((s) => ({
+        ...s,
+        present: false
+      }));
+
+      setClassStudents(mapped);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
+    if (!detections || detections.length === 0) return;
+
     detections.forEach((d) => {
       if (d.name === "Unknown") return;
 
-      // 👇 nếu chưa lưu thì mới gọi API
       if (!savedIds.has(d.id)) {
 
-        // thêm vào danh sách hiển thị
-        setAttendanceList((prev) => [
-          ...prev,
-          {
-            id: d.id,
-            name: d.name,
-            time: d.time
-          }
-        ]);
+        // 👉 thêm vào bảng vừa quét
+        setAttendanceList((prev) => {
+          console.log("ADD:", d.id); // debug
+          return [
+            ...prev,
+            {
+              id: d.id,
+              name: d.name,
+              time: d.time
+            }
+          ];
+        });
 
-        // gọi API
+        // 👉 cập nhật danh sách lớp
+        setClassStudents((prev) =>
+          prev.map((s) =>
+            s.id === d.id ? { ...s, present: true } : s
+          )
+        );
+
         saveAttendance(d);
 
-        // đánh dấu đã lưu
         setSavedIds(prev => new Set(prev).add(d.id));
       }
     });
@@ -245,6 +283,8 @@ export default function Attendance() {
   };
 
   const saveAttendance = async (d) => {
+    console.log("CALL API ATTENDANCE:", d)
+
     try {
       await fetch("http://localhost:5001/attendance", {
         method: "POST",
@@ -255,6 +295,7 @@ export default function Attendance() {
           studentId: d.id,
           studentName: d.name,
           classId: selectedClass,
+          session: selectedSession, 
           image: d.image 
         })
       });
@@ -281,22 +322,48 @@ export default function Attendance() {
         <div className="bg-white p-6 rounded-2xl shadow border grid md:grid-cols-3 gap-6 items-end">
 
           {/* CHỌN LỚP */}
-          <div>
+          <div className="flex-1">
+          <label className="block text-sm mb-2 font-medium">
+            🎯 Chọn lớp
+          </label>
+
+          <select
+            value={selectedClass}
+            onChange={(e) => {
+              setSelectedClass(e.target.value);
+              setSelectedSession(""); // reset buổi khi đổi lớp
+            }}
+            className="w-full p-3 border rounded-xl"
+          >
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.id})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* CHỌN BUỔI (CHỈ HIỆN KHI ĐÃ CHỌN LỚP) */}
+        {selectedClass && (
+          <div className="w-40">
             <label className="block text-sm mb-2 font-medium">
-              🎯 Chọn lớp
+              📅 Buổi
             </label>
+
             <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-400"
+              value={selectedSession}
+              onChange={(e) => setSelectedSession(e.target.value)}
+              className="w-full p-3 border rounded-xl"
             >
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.id})
+              
+              {[...Array(15)].map((_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  Buổi {i + 1}
                 </option>
               ))}
             </select>
           </div>
+        )}
 
           {/* CAMERA SOURCE */}
           <div>
@@ -407,42 +474,83 @@ export default function Attendance() {
             </div>
           </div>
 
-          {/* LIST */}
+           {/* RIGHT PANEL */}
           <div className="bg-white p-5 rounded-2xl shadow border">
-            <h3 className="font-semibold mb-4 flex justify-between">
-              📝 Danh sách vừa quét
-              <span className="text-sm text-gray-400">
-                {attendanceList.length} bản ghi
-              </span>
-            </h3>
 
-            <div className="max-h-[380px] overflow-y-auto">
-             <table className="w-full text-sm border rounded-xl overflow-hidden">
-              <thead className="bg-blue-500 text-white">
-                <tr>
-                  <th className="p-2">MSSV</th>
-                  <th className="p-2">Tên</th>
-                  <th className="p-2">Thời gian</th>
-                </tr>
-              </thead>
+          {/* LIST */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setActiveTab("scan")}
+              className={`px-4 py-2 rounded-xl ${
+                activeTab === "scan"
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-100"
+              }`}
+            >
+              📝 Vừa quét
+            </button>
 
-              <tbody>
-                {attendanceList.map((item, index) => (
-                  <tr key={index} className="border-b hover:bg-gray-50">
-                    <td className="p-2 font-medium">{item.id}</td>
-                    <td className="p-2">{item.name}</td>
-                    <td className="p-2 text-gray-500">{item.time}</td>
+            <button
+              onClick={() => setActiveTab("students")}
+              className={`px-4 py-2 rounded-xl ${
+                activeTab === "students"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-100"
+              }`}
+            >
+              📋 Danh sách lớp
+            </button>
+          </div>
+            {/* TAB CONTENT */}
+            {activeTab === "scan" && (
+              <table className="w-full text-sm">
+                <thead className="bg-blue-500 text-white">
+                  <tr>
+                    <th className="p-2">MSSV</th>
+                    <th className="p-2">Tên</th>
+                    <th className="p-2">Thời gian</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
+                </thead>
+                <tbody>
+                  {attendanceList.map((item, index) => (
+                    <tr key={index}>
+                      <td className="p-2">{item.id}</td>
+                      <td className="p-2">{item.name}</td>
+                      <td className="p-2">{item.time}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {activeTab === "students" && (
+              <table className="w-full text-sm">
+                <thead className="bg-green-500 text-white">
+                  <tr>
+                    <th className="p-2">MSSV</th>
+                    <th className="p-2">Tên</th>
+                    <th className="p-2">Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classStudents.map((s) => (
+                    <tr key={s.id}>
+                      <td className="p-2">{s.id}</td>
+                      <td className="p-2">{s.name}</td>
+                      <td className="p-2">
+                        {s.present ? "✅ Có mặt" : "❌ Vắng"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
           </div>
-
         </div>
 
-      </div>
+        </div>
+       
       {showIpModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
 

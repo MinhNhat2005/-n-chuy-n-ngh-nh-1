@@ -54,6 +54,7 @@ export default function AttendanceHistory() {
         mssv: item.student_id || "",
         name: item.student_name || "",
         class: item.class_name || "",
+        session: item.session || "",
         time: item.time,
         image: item.image
       }))
@@ -156,7 +157,7 @@ export default function AttendanceHistory() {
       // ❌ nếu user bấm cancel thì không báo lỗi
       if (err.name === "AbortError") return
 
-      Swal.fire({
+      Swal.fire({                                   
         icon: "error",
         title: "Lỗi!",
         text: "Không thể xuất file"
@@ -214,103 +215,184 @@ export default function AttendanceHistory() {
         </div>
 
         {/* TABLE */}
-        <div className="bg-white rounded-2xl shadow border overflow-hidden">
+        {loading ? (
 
-          <div className="flex justify-between items-center p-4 border-b">
+          <div className="bg-white rounded-2xl shadow border p-10 text-center text-gray-400">
+            Đang tải dữ liệu...
+          </div>
 
-            <h2 className="font-semibold">📌 Danh sách điểm danh</h2>
+        ) : data.length === 0 ? (
 
-            <div className="flex items-center gap-3">
+          <div className="bg-white rounded-2xl shadow border p-10 text-center text-gray-400">
+            Không có dữ liệu
+          </div>
 
-              <span className="text-sm text-gray-500">
-                {data.length} bản ghi
-              </span>
+        ) : (
 
-              <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm disabled:opacity-50"
-              >
-                <FaFileExcel />
-                {exporting ? "Đang xuất..." : "Xuất Excel"}
-              </button>
+          Object.entries(
+            data.reduce((groups, item) => {
+
+              const className = item.class || "Chưa có lớp"
+
+              if (!groups[className]) {
+                groups[className] = []
+              }
+
+              groups[className].push(item)
+
+              return groups
+
+            }, {})
+          ).map(([className, classData]) => (
+
+            <div
+              key={className}
+              className="bg-white rounded-2xl shadow border overflow-hidden mb-6"
+            >
+
+              {/* HEADER */}
+              <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+
+                <div>
+                  <h2 className="font-semibold text-lg">
+                    📌 Danh sách điểm danh
+                  </h2>
+
+                  <p className="text-sm text-gray-500 mt-1">
+                    Lớp:{" "}
+                    <span className="font-semibold text-blue-600">
+                      {className}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+
+                  <span className="text-sm text-gray-500">
+                    {classData.length} bản ghi
+                  </span>
+
+                  <button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm disabled:opacity-50"
+                  >
+                    <FaFileExcel />
+                    {exporting ? "Đang xuất..." : "Xuất Excel"}
+                  </button>
+
+                </div>
+
+              </div>
+
+              {/* TABLE */}
+              <table className="w-full text-sm">
+
+                <thead className="bg-gray-100 text-gray-600">
+                  <tr>
+                    <th className="p-3">#</th>
+                    <th className="p-3">MSSV</th>
+                    <th className="p-3">Họ tên</th>
+                    <th className="p-3">Lớp</th>
+                    <th className="p-3">Buổi</th>
+                    <th className="p-3">Thời gian</th>
+                    <th className="p-3">Ảnh</th>
+                    <th className="p-3">Xóa</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+
+                  {classData.length === 0 ? (
+
+                    <tr>
+                      <td
+                        colSpan="7"
+                        className="text-center p-5 text-gray-400"
+                      >
+                        Không có dữ liệu của lớp này
+                      </td>
+                    </tr>
+
+                  ) : (
+
+                    classData.map((item, index) => (
+
+                      <tr
+                        key={item.id}
+                        className="border-t hover:bg-gray-50 transition"
+                      >
+
+                        <td className="p-3 font-medium">
+                          {index + 1}
+                        </td>
+
+                        <td className="p-3">
+                          {item.mssv}
+                        </td>
+
+                        <td className="p-3 font-semibold">
+                          {item.name}
+                        </td>
+
+                        <td className="p-3">
+                          <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs">
+                            {item.class}
+                          </span>
+                        </td>
+
+                        <td className="p-3">
+                          <span className="bg-purple-100 text-purple-600 px-3 py-1 rounded-full text-xs font-semibold">
+                           {item.session}
+                          </span>
+                        </td>
+
+                        <td className="p-3 text-gray-500">
+                          {item.time
+                            ? new Date(item.time).toLocaleString("vi-VN")
+                            : ""}
+                        </td>
+
+                        <td className="p-3">
+
+                          <img
+                            src={getImageUrl(item.image)}
+                            alt=""
+                            onClick={() =>
+                              item.image &&
+                              setSelectedImage(getImageUrl(item.image))
+                            }
+                            className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:scale-110 transition"
+                          />
+
+                        </td>
+
+                        <td className="p-3">
+
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <FaTrash />
+                          </button>
+
+                        </td>
+
+                      </tr>
+
+                    ))
+
+                  )}
+
+                </tbody>
+
+              </table>
 
             </div>
 
-          </div>
+          ))
 
-          <table className="w-full text-sm">
-
-            <thead className="bg-gray-50 text-gray-600">
-              <tr>
-                <th className="p-3">#</th>
-                <th className="p-3">MSSV</th>
-                <th className="p-3">Họ tên</th>
-                <th className="p-3">Lớp</th>
-                <th className="p-3">Thời gian</th>
-                <th className="p-3">Ảnh</th>
-                <th className="p-3">Xóa</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="7" className="text-center p-5 text-gray-400">
-                    Đang tải dữ liệu...
-                  </td>
-                </tr>
-              ) : data.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="text-center p-5 text-gray-400">
-                    Không có dữ liệu
-                  </td>
-                </tr>
-              ) : (
-                data.map((item, index) => (
-                  <tr key={item.id} className="border-t hover:bg-gray-50 transition">
-
-                    <td className="p-3 font-medium">{index + 1}</td>
-                    <td className="p-3">{item.mssv}</td>
-                    <td className="p-3 font-semibold">{item.name}</td>
-
-                    <td className="p-3">
-                      <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs">
-                        {item.class}
-                      </span>
-                    </td>
-
-                    <td className="p-3 text-gray-500">
-                      {item.time ? new Date(item.time).toLocaleString("vi-VN") : ""}
-                    </td>
-
-                    <td className="p-3">
-                      <img
-                        src={getImageUrl(item.image)}
-                        alt=""
-                        onClick={() => item.image && setSelectedImage(getImageUrl(item.image))}
-                        className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:scale-110 transition"
-                      />
-                    </td>
-
-                    <td className="p-3">
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <FaTrash />
-                      </button>
-                    </td>
-
-                  </tr>
-                ))
-              )}
-            </tbody>
-            
-
-          </table>
-
-        </div>
+        )}
 
         {/* MODAL IMAGE */}
         {selectedImage && (

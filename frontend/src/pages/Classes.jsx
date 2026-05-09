@@ -629,9 +629,12 @@ export default function Classes() {
                                       }
                                     })
 
-                                    await fetch(`http://localhost:5001/students/${sv.id}`, {
-                                      method: "DELETE"
-                                    })
+                                    await fetch(
+                                      `http://localhost:5001/enrollments/${sv.id}/${selectedClass}`,
+                                      {
+                                        method: "DELETE"
+                                      }
+                                    )
 
                                     loadStudents()
 

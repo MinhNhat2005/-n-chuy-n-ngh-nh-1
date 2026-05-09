@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify
 from db import get_db
-from datetime import datetime
 
 attendance_bp = Blueprint("attendance", __name__)
 
@@ -13,9 +12,10 @@ def save_attendance():
     student_id = data.get("studentId")
     student_name = data.get("studentName")
     class_id = data.get("classId")
+    session = data.get("session")   # 🔥 thêm
     image = data.get("image")
 
-    if not student_id or not student_name or not class_id:
+    if not student_id or not student_name or not class_id or not session:
         return jsonify({
             "error": "Missing data",
             "received": data
@@ -25,12 +25,13 @@ def save_attendance():
         db = get_db()
         cursor = db.cursor()
 
-        # 🔥 check trùng theo ngày
+        # 🔥 check trùng theo session (QUAN TRỌNG)
         cursor.execute("""
             SELECT id FROM attendance
-            WHERE student_id = %s AND class_id = %s
-            AND DATE(time) = CURDATE()
-        """, (student_id, class_id))
+            WHERE student_id = %s 
+            AND class_id = %s
+            AND session = %s
+        """, (student_id, class_id, session))
 
         if cursor.fetchone():
             cursor.close()
@@ -39,15 +40,16 @@ def save_attendance():
 
         # 🔥 insert
         cursor.execute("""
-            INSERT INTO attendance (student_id, student_name, class_id, image)
-            VALUES (%s, %s, %s, %s)
-        """, (student_id, student_name, class_id, image))
+            INSERT INTO attendance 
+            (student_id, student_name, class_id, session, image)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (student_id, student_name, class_id, session, image))
 
         db.commit()
 
-        # 🔥 lấy lại dữ liệu vừa insert
+        # 🔥 lấy lại dữ liệu
         cursor.execute("""
-            SELECT student_id, student_name, time, image
+            SELECT student_id, student_name, session, time, image
             FROM attendance
             WHERE id = LAST_INSERT_ID()
         """)
@@ -60,12 +62,12 @@ def save_attendance():
         return jsonify({
             "studentId": result[0],
             "studentName": result[1],
-            "time": result[2].strftime("%H:%M:%S"),
-            "image": result[3]
+            "session": result[2],
+            "time": result[3].strftime("%H:%M:%S"),
+            "image": result[4]
         }), 200
 
     except Exception as e:
-        db.rollback()   # 🔥 quan trọng
+        db.rollback()
         print("ERROR:", e)
-
-        return jsonify({"error": "Database error"}), 500
+        return jsonify({"error": str(e)}), 500

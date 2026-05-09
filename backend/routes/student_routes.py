@@ -91,18 +91,28 @@ def add_enrollment():
 
 
 # ===== XÓA SINH VIÊN =====
-@student_bp.route("/students/<student_id>", methods=["DELETE"])
-def delete_student(student_id):
-    db = get_db()
-    cursor = db.cursor()
+@student_bp.route("/enrollments/<student_id>/<class_id>", methods=["DELETE"])
+def remove_student_from_class(student_id, class_id):
+    conn = get_db()
+    cursor = conn.cursor()
 
-    # xóa enrollment trước
-    cursor.execute("DELETE FROM enrollments WHERE student_id = %s", (student_id,))
-    cursor.execute("DELETE FROM students WHERE id = %s", (student_id,))
+    try:
+        cursor.execute(
+            "DELETE FROM enrollments WHERE student_id=%s AND class_id=%s",
+            (student_id, class_id)
+        )
 
-    db.commit()
+        conn.commit()
 
-    return jsonify({"message": "Xóa thành công"})
+        return jsonify({"message": "Removed from class"})
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
 
 @student_bp.route("/update-student-full/<id>", methods=["PUT"])
 def update_student_full(id):
